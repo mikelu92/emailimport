@@ -1,0 +1,2 @@
+token.json filter=git-crypt diff=git-crypt
+credentials.json filter=git-crypt diff=git-crypt
