@@ -15,7 +15,7 @@ import (
 var data *regexp.Regexp
 
 func init() {
-	data, _ = regexp.Compile("(?m)on (?P<date>[A-Z][a-z]+ \\d{1,2}, \\d{4}), at (?P<payee>.+), a pending authorization or purchase in the amount of (?P<amt>\\$\\d{0,}.\\d{2}) was placed")
+	data, _ = regexp.Compile("(?m)on (?P<date>[A-Z][a-z]+ \\d{1,2}, \\d{4}), at (?P<payee>.+), a pending authorization or purchase in the amount of (?P<amt>\\$\\d{0,}(,?\\d{3})*.\\d{2}) was placed")
 }
 
 type ProviderCapitalOne struct {
