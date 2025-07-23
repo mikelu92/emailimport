@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/exec"
 	"slices"
@@ -69,8 +70,14 @@ func tokenFromWeb(ctx context.Context, config *oauth2.Config) *oauth2.Token {
 	}))
 	defer ts.Close()
 
-	config.RedirectURL = ts.URL
-	authURL := config.AuthCodeURL(randState)
+	// Ensure redirect URI uses localhost instead of 127.0.0.1 so it matches the
+	// allowed URIs in Google Cloud Console, which typically include only
+	// "http://localhost". We keep the dynamic port chosen by httptest.
+	u, _ := url.Parse(ts.URL)
+	config.RedirectURL = fmt.Sprintf("http://localhost:%s", u.Port())
+	// Request offline access so we receive a refresh token that allows the app to
+	// reuse the credentials without re-authorisation.
+	authURL := config.AuthCodeURL(randState, oauth2.AccessTypeOffline)
 	go openURL(authURL)
 	log.Printf("Authorize this app at: %s", authURL)
 	code := <-ch
