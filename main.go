@@ -192,7 +192,7 @@ func main() {
 			log.Fatalf("unable to get transaction from email: %v", err)
 		}
 		if t == nil {
-			log.Printf("unrecognized transaction format, but will continue\n")
+			log.Printf("unrecognized transaction format for account %q, but will continue\n", p.GetAccount())
 			continue
 		}
 
@@ -245,7 +245,7 @@ func main() {
 				log.Fatalf("could not get transaction from thread message")
 			}
 			if t == nil {
-				log.Printf("unrecognized transaction format, but will continue\n")
+				log.Printf("unrecognized transaction format for account %q, but will continue\n", p.GetAccount())
 				continue
 			}
 

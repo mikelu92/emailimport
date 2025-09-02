@@ -27,6 +27,7 @@ Add the configured provider account name to the warning so logs show which provi
 - Minimal local changes to main.go at two sites to interpolate p.GetAccount().
 
 ## Phase 1: Single-message flow
+- [x] Completed: updated main.go at single-message site
 - File: main.go
 - Change:
   - From: log.Printf("unrecognized transaction format, but will continue\n")
@@ -44,6 +45,7 @@ Add the configured provider account name to the warning so logs show which provi
   - Normal recognized messages still process and print ledger entries
 
 ## Phase 2: Thread flow
+- [x] Completed: updated main.go at thread flow site
 - File: main.go
 - Change:
   - From: log.Printf("unrecognized transaction format, but will continue\n")
