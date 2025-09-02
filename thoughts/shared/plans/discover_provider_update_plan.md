@@ -1,5 +1,10 @@
 # Implementation Plan: Discover provider supports both “Transaction Date” and “Date” formats
 
+## Progress
+- [x] Phase 1: Refactor discover.go
+- [x] Phase 2: Tests (unit tests added)
+- [x] go test ./... passes
+
 ## Overview
 - Update provider/discover/discover.go to parse Discover emails that present:
   - Original: “Transaction Date: …” then “Merchant: …” then “Amount: …”
@@ -30,7 +35,7 @@
 - discover.go:37-43 indexes regex submatches without checking match success.
 - capitalone.go:72-90 implements findPlainText for multipart traversal.
 
-## What We’re NOT Doing
+## What We’re NOT DOING
 - No HTML parsing.
 - No broader label vocabulary beyond Date/Transaction Date, Merchant, Amount.
 - No shared helper extraction refactor (can be a follow-up).
