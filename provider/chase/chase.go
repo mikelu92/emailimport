@@ -2,6 +2,7 @@ package chase
 
 import (
 	"encoding/base64"
+	"errors"
 	"regexp"
 	"strconv"
 	"strings"
@@ -18,7 +19,8 @@ var (
 )
 
 func init() {
-	subject, _ = regexp.Compile("Your (?P<amt>\\$\\d+\\.\\d+) transaction with (?P<payee>.*)")
+	// Accept both “Your …” and “You made a …”, allow thousands separators, and “with” or “at”
+	subject, _ = regexp.Compile(`^(?:Your|You made a) (?P<amt>\$\d{1,3}(?:,\d{3})*\.\d{2}) transaction(?: with| at) (?P<payee>.+)$`)
 	last4, _ = regexp.Compile(`\d{4}`)
 }
 
@@ -62,10 +64,22 @@ func (p *ProviderChase) GetTransaction(msg *gmail.Message) (*ledger.Transaction,
 	t.Date = d
 
 	// Now get account
-	body, err := base64.URLEncoding.DecodeString(msg.Payload.Body.Data)
+	var bodyData string
+	if part, err := findHTML(msg.Payload); err == nil && part != nil && part.Data != "" {
+		bodyData = part.Data
+	} else if msg.Payload.Body != nil && msg.Payload.Body.Data != "" {
+		// fallback to top-level body
+		bodyData = msg.Payload.Body.Data
+	} else {
+		// no body we can parse
+		return nil, nil
+	}
+
+	body, err := decodeBase64(bodyData)
 	if err != nil {
 		return nil, err
 	}
+
 	ht := html.NewTokenizer(strings.NewReader(string(body)))
 
 	var actFound bool
@@ -95,7 +109,7 @@ loop:
 					}
 				}
 				token = ht.Token()
-				if token.Data == "Account" {
+				if strings.TrimSpace(token.Data) == "Account" {
 					actFound = true
 					break
 				}
@@ -128,6 +142,36 @@ loop:
 }
 
 func (p *ProviderChase) GetAccount() string {
-	return "test"
+	return "chase"
 
+}
+
+// decodeBase64 tries padded base64url first, then raw (unpadded) base64url.
+func decodeBase64(s string) ([]byte, error) {
+	if b, err := base64.URLEncoding.DecodeString(s); err == nil {
+		return b, nil
+	}
+	return base64.RawURLEncoding.DecodeString(s)
+}
+
+var ErrPartNotFound = errors.New("part not found")
+
+func findHTML(msg *gmail.MessagePart) (*gmail.MessagePartBody, error) {
+	for _, header := range msg.Headers {
+		if header.Name != "Content-Type" {
+			continue
+		}
+		if strings.Contains(header.Value, "multipart") {
+			for _, part := range msg.Parts {
+				body, err := findHTML(part)
+				if errors.Is(err, ErrPartNotFound) {
+					continue
+				}
+				return body, nil
+			}
+		} else if strings.Contains(header.Value, "text/html") {
+			return msg.Body, nil
+		}
+	}
+	return nil, ErrPartNotFound
 }

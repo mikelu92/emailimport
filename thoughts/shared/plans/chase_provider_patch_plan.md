@@ -37,106 +37,107 @@ Apply the following changes to `/Users/mlu/code/emailimport/provider/chase/chase
  package chase
  
  import (
--	"encoding/base64"
-+	"encoding/base64"
- 	"regexp"
- 	"strconv"
- 	"strings"
- 	"time"
+-    "encoding/base64"
++    "encoding/base64"
+     "regexp"
+     "strconv"
+     "strings"
+     "time"
 @@ -18,8 +17,9 @@ var (
  )
  
  func init() {
--	subject, _ = regexp.Compile("Your (?P<amt>\\$\\d+\\.\\d+) transaction with (?P<payee>.*)")
--	last4, _ = regexp.Compile(`\d{4}`)
-+	// Accept both “Your …” and “You made a …”, allow thousands separators, and “with” or “at”
-+	subject, _ = regexp.Compile(`^(?:Your|You made a) (?P<amt>\$\d{1,3}(?:,\d{3})*\.\d{2}) transaction(?: with| at) (?P<payee>.+)$`)
-+	last4, _ = regexp.Compile(`\d{4}`)
+-    subject, _ = regexp.Compile("Your (?P<amt>\\$\\d+\\.\\d+) transaction with (?P<payee>.*)")
+-    last4, _ = regexp.Compile(`\d{4}`)
++    // Accept both “Your …” and “You made a …”, allow thousands separators, and “with” or “at”
++    subject, _ = regexp.Compile(`^(?:Your|You made a) (?P<amt>\$\d{1,3}(?:,\d{3})*\.\d{2}) transaction(?: with| at) (?P<payee>.+)$`)
++    last4, _ = regexp.Compile(`\d{4}`)
  }
  
  type ProviderChase struct {
 @@ -62,11 +62,24 @@ func (p *ProviderChase) GetTransaction(msg *gmail.Message) (*ledger.Transaction, error) {
- 	t.Date = d
+     t.Date = d
  
- 	// Now get account
--	body, err := base64.URLEncoding.DecodeString(msg.Payload.Body.Data)
--	if err != nil {
--		return nil, err
--	}
--	ht := html.NewTokenizer(strings.NewReader(string(body)))
-+	var bodyData string
-+	if part := findHTML(msg.Payload); part != nil && part.Data != "" {
-+		bodyData = part.Data
-+	} else if msg.Payload.Body != nil && msg.Payload.Body.Data != "" {
-+		// fallback to top-level body
-+		bodyData = msg.Payload.Body.Data
-+	} else {
-+		// no body we can parse
-+		return nil, nil
-+	}
+     // Now get account
+-    body, err := base64.URLEncoding.DecodeString(msg.Payload.Body.Data)
+-    if err != nil {
+-        return nil, err
+-    }
+-    ht := html.NewTokenizer(strings.NewReader(string(body)))
++    var bodyData string
++    if part, err := findHTML(msg.Payload); err == nil && part != nil && part.Data != "" {
++        bodyData = part.Data
++    } else if msg.Payload.Body != nil && msg.Payload.Body.Data != "" {
++        // fallback to top-level body
++        bodyData = msg.Payload.Body.Data
++    } else {
++        // no body we can parse
++        return nil, nil
++    }
 +
-+	body, err := decodeBase64(bodyData)
-+	if err != nil {
-+		return nil, err
-+	}
++    body, err := decodeBase64(bodyData)
++    if err != nil {
++        return nil, err
++    }
 +
-+	ht := html.NewTokenizer(strings.NewReader(string(body)))
++    ht := html.NewTokenizer(strings.NewReader(string(body)))
  
- 	var actFound bool
+     var actFound bool
  loop:
 @@ -95,7 +108,7 @@ loop:
- 					}
- 				}
- 				token = ht.Token()
--				if token.Data == "Account" {
-+				if strings.TrimSpace(token.Data) == "Account" {
- 					actFound = true
- 					break
- 				}
+                 }
+                 token = ht.Token()
+-                if token.Data == "Account" {
++                if strings.TrimSpace(token.Data) == "Account" {
+                     actFound = true
+                     break
+                 }
 @@ -128,7 +141,36 @@ loop:
- 	return &t, nil
+     return &t, nil
  }
  
  func (p *ProviderChase) GetAccount() string {
--	return "test"
-+	return "chase"
+-    return "test"
++    return "chase"
  
  }
  
 +// decodeBase64 tries padded base64url first, then raw (unpadded) base64url.
 +func decodeBase64(s string) ([]byte, error) {
-+	if b, err := base64.URLEncoding.DecodeString(s); err == nil {
-+		return b, nil
-+	}
-+	return base64.RawURLEncoding.DecodeString(s)
++    if b, err := base64.URLEncoding.DecodeString(s); err == nil {
++        return b, nil
++    }
++    return base64.RawURLEncoding.DecodeString(s)
 +}
 +
-+// findHTML locates the first text/html body in a (possibly multipart) message.
-+func findHTML(p *gmail.MessagePart) *gmail.MessagePartBody {
-+	if p == nil {
-+		return nil
-+	}
-+	// Prefer the MimeType field; fall back to headers if needed
-+	if strings.Contains(p.MimeType, "multipart") {
-+		for _, sub := range p.Parts {
-+			if b := findHTML(sub); b != nil {
-+				return b
-+			}
-+		}
-+		return nil
-+	}
-+	if strings.Contains(p.MimeType, "text/html") {
-+		return p.Body
-+	}
-+	return nil
++var ErrPartNotFound = errors.New("part not found")
++
++func findHTML(msg *gmail.MessagePart) (*gmail.MessagePartBody, error) {
++    for _, header := range msg.Headers {
++        if header.Name != "Content-Type" {
++            continue
++        }
++        if strings.Contains(header.Value, "multipart") {
++            for _, part := range msg.Parts {
++                body, err := findHTML(part)
++                if errors.Is(err, ErrPartNotFound) {
++                    continue
++                }
++                return body, nil
++            }
++        } else if strings.Contains(header.Value, "text/html") {
++            return msg.Body, nil
++        }
++    }
++    return nil, ErrPartNotFound
 +}
 ```
 
 ## Implementation Steps
-1. Apply the diff to `provider/chase/chase.go`.
-2. Test with the provided sample email to ensure it parses correctly.
-3. Verify that existing functionality still works for other Chase emails.
-4. Update any configuration or documentation if needed.
+1. [x] Apply the diff to `provider/chase/chase.go`.
+2. [ ] Test with the provided sample email to ensure it parses correctly.
+3. [x] Verify that existing functionality still works for other Chase emails (ran `go test ./...`).
+4. [ ] Update any configuration or documentation if needed.
 
 ## Risks and Considerations
 - The new regex may be too permissive; monitor for false positives.
