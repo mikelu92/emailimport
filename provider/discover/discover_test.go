@@ -110,7 +110,55 @@ Amount: $1.00`)),
 					},
 				},
 			},
-			expected: nil,
+			expected: &ledger.Transaction{
+				Account: "Discover",
+				Payee:   "HOLIDAY STATIONS 3826",
+				Amount:  "$1.00",
+				Date:    time.Date(2025, 8, 27, 0, 0, 0, 0, time.UTC),
+			},
+		},
+		{
+			name: "plain text non-matching, html present",
+			message: &gmail.Message{
+				Payload: &gmail.MessagePart{
+					Headers: []*gmail.MessagePartHeader{
+						{
+							Name:  "Content-Type",
+							Value: "multipart/alternative; boundary=jkl",
+						},
+					},
+					Parts: []*gmail.MessagePart{
+						{
+							Headers: []*gmail.MessagePartHeader{
+								{
+									Name:  "Content-Type",
+									Value: "text/plain; charset=\"UTF-8\"",
+								},
+							},
+							Body: &gmail.MessagePartBody{
+								Data: base64.URLEncoding.EncodeToString([]byte(`This is some random text without the required labels.`)),
+							},
+						},
+						{
+							Headers: []*gmail.MessagePartHeader{
+								{
+									Name:  "Content-Type",
+									Value: "text/html; charset=\"UTF-8\"",
+								},
+							},
+							Body: &gmail.MessagePartBody{
+								Data: base64.URLEncoding.EncodeToString([]byte(`<html><body>Merchant: HOLIDAY STATIONS 3826<br/>Date: August 27, 2025<br/>Amount: $1.00</body></html>`)),
+							},
+						},
+					},
+				},
+			},
+			expected: &ledger.Transaction{
+				Account: "Discover",
+				Payee:   "HOLIDAY STATIONS 3826",
+				Amount:  "$1.00",
+				Date:    time.Date(2025, 8, 27, 0, 0, 0, 0, time.UTC),
+			},
 		},
 		{
 			name: "non-matching content",
