@@ -8,7 +8,7 @@ import (
 	"google.golang.org/api/gmail/v1"
 )
 
-func TestGetTransaction_SampleEmail(t *testing.T) {
+func TestGetTransactionSampleEmail(t *testing.T) {
 	htmlBody := `<html><body><table><tr><td>Account</td><td>Chase Freedom Visa (...8719)</td></tr></table></body></html>`
 	encoded := base64.URLEncoding.EncodeToString([]byte(htmlBody))
 
