@@ -1,6 +1,7 @@
 package target
 
 import (
+	"encoding/base64"
 	"regexp"
 	"strings"
 	"time"
@@ -12,17 +13,50 @@ import (
 var exp *regexp.Regexp
 
 func init() {
-	exp = regexp.MustCompile("Hello .*, A transaction of (?P<amt>\\$\\d+\\.\\d+) at (?P<payee>.*) was Approved with your Target RedCard")
-
+	exp = regexp.MustCompile("(?s)Hello .*,.*A transaction of (?P<amt>\\$\\d+\\.\\d+)[\\s\\p{Zs}]+at[\\s\\p{Zs}]+(?P<payee>.+?)[\\s\\p{Zs}]+has been approved on your.*Target Circle.*Card")
 }
 
 type ProviderTarget struct {
 	Account string
 }
 
+func getBodyText(msg *gmail.Message) string {
+	if msg.Payload == nil {
+		return ""
+	}
+
+	var extractText func(part *gmail.MessagePart) string
+	extractText = func(part *gmail.MessagePart) string {
+		if part == nil {
+			return ""
+		}
+		if part.MimeType == "text/plain" && part.Body != nil && part.Body.Data != "" {
+			data, err := base64.URLEncoding.DecodeString(part.Body.Data)
+			if err == nil {
+				return string(data)
+			}
+		}
+		if part.MimeType == "text/html" && part.Body != nil && part.Body.Data != "" {
+			data, err := base64.URLEncoding.DecodeString(part.Body.Data)
+			if err == nil {
+				return string(data)
+			}
+		}
+		for _, child := range part.Parts {
+			if text := extractText(child); text != "" {
+				return text
+			}
+		}
+		return ""
+	}
+
+	return extractText(msg.Payload)
+}
+
 func (p *ProviderTarget) GetTransaction(msg *gmail.Message) (*ledger.Transaction, error) {
 	t := ledger.Transaction{Account: p.Account}
-	match := exp.FindStringSubmatch(msg.Snippet)
+	body := getBodyText(msg)
+	match := exp.FindStringSubmatch(body)
 	if len(match) == 0 {
 		return nil, nil
 	}
