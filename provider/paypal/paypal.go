@@ -2,6 +2,7 @@ package paypal
 
 import (
 	"errors"
+	"fmt"
 	"html"
 	"regexp"
 	"strings"
@@ -18,9 +19,9 @@ var (
 )
 
 func init() {
-	expSent, _ = regexp.Compile("You sent (?P<amt>\\$\\d+\\.\\d+).*to (?P<payee>(\\S+\\s)+)(YOUR NOTE TO|Transaction Details)")
-	expSent2, _ = regexp.Compile("Details Transaction ID: (?P<id>\\S+) (?P<date>.*)")
-	expRec, _ = regexp.Compile("Hello, \\S+\\s\\S+ (?P<payee>.*) sent you (?P<amt>\\$\\d+\\.\\d+).*(Note from.*: (?P<note>.*))? Transaction Details (Transaction ID (?P<id>\\S+))?")
+	expSent, _ = regexp.Compile(`You (?:paid|sent|contributed) (?P<amt>\$\d+\.\d+) USD to (?P<payee>.+?)(?: Transaction date| Transaction Details| Contribution details| Transaction ID|$)`)
+	expSent2, _ = regexp.Compile("Transaction ID (?P<id>\\S+)")
+	expRec, _ = regexp.Compile("Hello, \\S+\\s\\S+ (?P<payee>.+?) sent you (?P<amt>\\$\\d+\\.\\d+) USD.*?Note from \\S+\\s\\S+ (?P<note>.+?) Transaction date (?P<date>.+?)(?: Transaction ID(?P<id>\\S*))?")
 }
 
 type ProviderPaypal struct {
@@ -35,6 +36,7 @@ func (p *ProviderPaypal) GetTransaction(msg *gmail.Message) (*ledger.Transaction
 		exp = expRec
 		match = exp.FindStringSubmatch(msg.Snippet)
 		if len(match) == 0 {
+			fmt.Println("No match found for snippet:", msg.Snippet)
 			return nil, nil
 		}
 		t.IsReceive = true
